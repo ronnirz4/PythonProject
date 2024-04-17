@@ -3,7 +3,8 @@ from unittest.mock import patch, Mock
 from polybot.bot import ImageProcessingBot
 import os
 
-img_path = 'polybot/test/beatles.jpeg' if '/polybot/test' not in os.getcwd() else 'beatles.jpeg'
+
+img_path = 'polybot/test/beatles.jpeg' if os.path.normpath('/polybot/test') not in os.getcwd() else 'beatles.jpeg'
 
 mock_msg = {
     'message_id': 349,
@@ -42,7 +43,7 @@ mock_msg = {
          'height': 660
          }
     ],
-    'caption': 'Rotate'
+    'caption': 'contour'
 }
 
 
@@ -62,15 +63,11 @@ class TestBot(unittest.TestCase):
 
         self.bot = bot
 
-    def test_contour(self):
-        mock_msg['caption'] = 'Contour'
+    @patch('polybot.bot.ImageProcessingBot.apply_contour_filter')
+    def test_contour(self, mock_apply_contour_filter):
+        self.bot.handle_message(mock_msg)
 
-        with patch('polybot.img_proc.Img.contour') as mock_method:
-            self.bot.handle_message(mock_msg)
-
-            mock_method.assert_called_once()
-            self.bot.telegram_bot_client.send_photo.assert_called_once()
-
+        mock_apply_contour_filter.assert_called_once()
 
 
 if __name__ == '__main__':

@@ -1,10 +1,9 @@
 import telebot
 from loguru import logger
-import os
 import time
 from telebot.types import InputFile
-from polybot.img_proc import Img
-
+import os
+from PIL import Image, ImageDraw, ImageFilter
 
 class Bot:
 
@@ -34,7 +33,7 @@ class Bot:
     def download_user_photo(self, msg):
         """
         Downloads the photos that sent to the Bot to `photos` directory (should be existed)
-        :return:
+        :return: Complete file path of the downloaded photo
         """
         if not self.is_current_msg_photo(msg):
             raise RuntimeError(f'Message content of type \'photo\' expected')
@@ -46,10 +45,12 @@ class Bot:
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
 
-        with open(file_info.file_path, 'wb') as photo:
+        file_path = os.path.join(folder_name, file_info.file_path.split('/')[-1])
+
+        with open(file_path, 'wb') as photo:
             photo.write(data)
 
-        return file_info.file_path
+        return file_path
 
     def send_photo(self, chat_id, img_path):
         if not os.path.exists(img_path):
@@ -75,4 +76,75 @@ class QuoteBot(Bot):
 
 
 class ImageProcessingBot(Bot):
-    pass
+    def handle_message(self, msg):
+        logger.info(f'Incoming message: {msg}')
+
+        if self.is_current_msg_photo(msg):
+            try:
+                caption = msg.get("caption", "").lower()
+                if caption not in ['blur', 'contour']:
+                    self.send_text(msg['chat']['id'], "Unsupported filter. Supported filters are: Blur, Contour")
+                    return
+
+                img_path = self.download_user_photo(msg)
+                if caption == 'blur':
+                    processed_img = self.apply_blur_filter(img_path)
+                elif caption == 'contour':
+                    processed_img = self.apply_contour_filter(img_path)
+
+                self.send_photo(msg['chat']['id'], processed_img)
+                os.remove(img_path)  # Remove the downloaded image after processing
+            except Exception as e:
+                logger.error(f"Error processing image: {e}")
+                self.send_text(msg['chat']['id'], "Error processing image. Please try again later.")
+        else:
+            self.send_text(msg['chat']['id'], "Please send a photo with a caption indicating the filter to apply.")
+
+    def apply_blur_filter(self, img_path):
+        """
+        Apply blur filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        processed_img = original_img.filter(ImageFilter.BLUR)
+        processed_img_path = f"{img_path.split('.')[0]}_blur.jpg"
+        processed_img.save(processed_img_path)
+        return processed_img_path
+
+    def apply_contour_filter(self, img_path):
+        """
+        Apply contour filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+
+        # Convert the image to grayscale
+        grayscale_img = original_img.convert('L')
+
+        # Create a new blank image with the same size and mode as the original image
+        contour_img = Image.new('RGB', grayscale_img.size)
+
+        # Create a drawing context
+        draw = ImageDraw.Draw(contour_img)
+
+        # Apply contour filter by drawing contours
+        width, height = grayscale_img.size
+        for x in range(1, width - 1):  # Exclude edge pixels
+            for y in range(1, height - 1):  # Exclude edge pixels
+                # Get the pixel value at (x, y)
+                pixel = grayscale_img.getpixel((x, y))
+                # Check the surrounding pixels to create a contour effect
+                surrounding_pixels = [
+                    grayscale_img.getpixel((x - 1, y)),
+                    grayscale_img.getpixel((x + 1, y)),
+                    grayscale_img.getpixel((x, y - 1)),
+                    grayscale_img.getpixel((x, y + 1))
+                ]
+                # Calculate the average difference between the current pixel and surrounding pixels
+                difference = sum(surrounding_pixels) - 4 * pixel
+                # Set the pixel color in the contour image based on the difference
+                draw.point((x, y), fill=(max(0, pixel - difference),) * 3)
+
+        # Save the processed image
+        processed_img_path = f"{img_path.split('.')[0]}_contour.jpg"
+        contour_img.save(processed_img_path)
+
+        return processed_img_path

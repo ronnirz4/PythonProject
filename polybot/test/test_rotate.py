@@ -2,8 +2,7 @@ import unittest
 from polybot.img_proc import Img
 import os
 
-img_path = 'polybot/test/beatles.jpeg' if '/polybot/test' not in os.getcwd() else 'beatles.jpeg'
-
+img_path = 'polybot/test/beatles.jpeg' if os.path.normpath('/polybot/test') not in os.getcwd() else 'beatles.jpeg'
 
 class TestImgConcat(unittest.TestCase):
 
