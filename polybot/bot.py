@@ -4,6 +4,7 @@ import time
 from telebot.types import InputFile
 import os
 from PIL import Image, ImageDraw, ImageFilter
+from random import randint
 
 class Bot:
 
@@ -82,8 +83,8 @@ class ImageProcessingBot(Bot):
         if self.is_current_msg_photo(msg):
             try:
                 caption = msg.get("caption", "").lower()
-                if caption not in ['blur', 'contour']:
-                    self.send_text(msg['chat']['id'], "Unsupported filter. Supported filters are: Blur, Contour")
+                if caption not in ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat']:
+                    self.send_text(msg['chat']['id'], "Unsupported filter. Supported filters are: Blur, Contour, Rotate, Segment, Salt and Pepper, Concat")
                     return
 
                 img_path = self.download_user_photo(msg)
@@ -91,6 +92,14 @@ class ImageProcessingBot(Bot):
                     processed_img = self.apply_blur_filter(img_path)
                 elif caption == 'contour':
                     processed_img = self.apply_contour_filter(img_path)
+                elif caption == 'rotate':
+                    processed_img = self.apply_rotate_filter(img_path)
+                elif caption == 'segment':
+                    processed_img = self.apply_segment_filter(img_path)
+                elif caption == 'salt and pepper':
+                    processed_img = self.apply_salt_and_pepper_filter(img_path)
+                elif caption == 'concat':
+                    processed_img = self.apply_concat_filter(img_path)
 
                 self.send_photo(msg['chat']['id'], processed_img)
                 os.remove(img_path)  # Remove the downloaded image after processing
@@ -147,4 +156,61 @@ class ImageProcessingBot(Bot):
         processed_img_path = f"{img_path.split('.')[0]}_contour.jpg"
         contour_img.save(processed_img_path)
 
+        return processed_img_path
+
+    def apply_rotate_filter(self, img_path, angle=45):
+        """
+        Apply rotation filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        rotated_img = original_img.rotate(angle)
+        processed_img_path = f"{img_path.split('.')[0]}_rotate.jpg"
+        rotated_img.save(processed_img_path)
+        return processed_img_path
+
+    def apply_segment_filter(self, img_path, threshold=128):
+        """
+        Apply segmentation filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        segmented_img = original_img.point(lambda p: p > threshold and 255)
+        processed_img_path = f"{img_path.split('.')[0]}_segment.jpg"
+        segmented_img.save(processed_img_path)
+        return processed_img_path
+
+    def apply_salt_and_pepper_filter(self, img_path, density=0.05):
+        """
+        Apply salt and pepper noise filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        width, height = original_img.size
+        salt_and_pepper_img = original_img.copy()
+
+        num_pixels = int(width * height * density)
+        for _ in range(num_pixels):
+            x = randint(0, width - 1)
+            y = randint(0, height - 1)
+            salt_or_pepper = randint(0, 1)
+            if salt_or_pepper == 0:
+                salt_and_pepper_img.putpixel((x, y), (0, 0, 0))  # Black pixel (salt)
+            else:
+                salt_and_pepper_img.putpixel((x, y), (255, 255, 255))  # White pixel (pepper)
+
+        processed_img_path = f"{img_path.split('.')[0]}_salt_and_pepper.jpg"
+        salt_and_pepper_img.save(processed_img_path)
+        return processed_img_path
+
+    def apply_concat_filter(self, img_path):
+        """
+        Apply concatenation filter to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        width, height = original_img.size
+        concat_img = Image.new('RGB', (width * 2, height))
+
+        concat_img.paste(original_img, (0, 0))
+        concat_img.paste(original_img, (width, 0))
+
+        processed_img_path = f"{img_path.split('.')[0]}_concat.jpg"
+        concat_img.save(processed_img_path)
         return processed_img_path
