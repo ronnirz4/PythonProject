@@ -3,8 +3,10 @@ from loguru import logger
 import time
 from telebot.types import InputFile
 import os
-from PIL import Image, ImageDraw, ImageFilter
-from random import randint
+import random
+from sklearn.cluster import KMeans
+import numpy as np
+from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 
 class Bot:
 
@@ -17,7 +19,7 @@ class Bot:
         self.telegram_bot_client.remove_webhook()
         time.sleep(0.5)
 
-        # set the webhook URL
+        # set the webhook URL with static Ngrok subdomain
         self.telegram_bot_client.set_webhook(url=f'{telegram_chat_url}/{token}/', timeout=60)
 
         logger.info(f'Telegram Bot information\n\n{self.telegram_bot_client.get_me()}')
@@ -65,7 +67,11 @@ class Bot:
     def handle_message(self, msg):
         """Bot Main message handler"""
         logger.info(f'Incoming message: {msg}')
-        self.send_text(msg['chat']['id'], f'Your original message: {msg["text"]}')
+        chat_id = msg['chat']['id']
+        user_name = msg['chat'].get('first_name', 'user')
+        greeting = f"Hello, {user_name}! Welcome to our bot."
+        self.send_text(chat_id, greeting)
+        self.send_text(chat_id, f'Your original message: {msg["text"]}')
 
 
 class QuoteBot(Bot):
@@ -83,8 +89,9 @@ class ImageProcessingBot(Bot):
         if self.is_current_msg_photo(msg):
             try:
                 caption = msg.get("caption", "").lower()
-                if caption not in ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat']:
-                    self.send_text(msg['chat']['id'], "Unsupported filter. Supported filters are: Blur, Contour, Rotate, Segment, Salt and Pepper, Concat")
+                supported_filters = ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat']  # Add more filters if needed
+                if caption not in supported_filters:
+                    self.send_text(msg['chat']['id'], f"Unsupported filter. Supported filters are: {', '.join(supported_filters)}")
                     return
 
                 img_path = self.download_user_photo(msg)
@@ -158,59 +165,69 @@ class ImageProcessingBot(Bot):
 
         return processed_img_path
 
-    def apply_rotate_filter(self, img_path, angle=45):
+    def apply_rotate_filter(self, img_path):
         """
-        Apply rotation filter to the image located at img_path and return the path of the processed image.
+        Apply rotation to the image located at img_path and return the path of the processed image.
         """
         original_img = Image.open(img_path)
-        rotated_img = original_img.rotate(angle)
+        processed_img = original_img.rotate(90)  # Rotate by 90 degrees
         processed_img_path = f"{img_path.split('.')[0]}_rotate.jpg"
-        rotated_img.save(processed_img_path)
+        processed_img.save(processed_img_path)
         return processed_img_path
 
-    def apply_segment_filter(self, img_path, threshold=128):
+    def apply_segment_filter(self, img_path):
         """
         Apply segmentation filter to the image located at img_path and return the path of the processed image.
         """
+        # Your implementation of segmentation filter
         original_img = Image.open(img_path)
-        segmented_img = original_img.point(lambda p: p > threshold and 255)
+        np_img = np.array(original_img)
+        reshaped_img = np_img.reshape((-1, 3))
+
+        # Apply k-means clustering
+        kmeans = KMeans(n_clusters=2, random_state=0).fit(reshaped_img)
+        labels = kmeans.labels_
+        segmented_img = np.reshape(labels, (original_img.size[1], original_img.size[0]))
+
+        # Convert the segmented image to PIL Image
+        segmented_img = Image.fromarray((segmented_img * 255).astype(np.uint8))
+
+        # Save the processed image
         processed_img_path = f"{img_path.split('.')[0]}_segment.jpg"
         segmented_img.save(processed_img_path)
-        return processed_img_path
 
-    def apply_salt_and_pepper_filter(self, img_path, density=0.05):
+        return processed_img_path
+        pass
+
+    def apply_salt_and_pepper_filter(self, img_path):
         """
-        Apply salt and pepper noise filter to the image located at img_path and return the path of the processed image.
+        Apply salt and pepper noise to the image located at img_path and return the path of the processed image.
         """
+        # Your implementation of salt and pepper noise filter
         original_img = Image.open(img_path)
         width, height = original_img.size
-        salt_and_pepper_img = original_img.copy()
-
-        num_pixels = int(width * height * density)
-        for _ in range(num_pixels):
-            x = randint(0, width - 1)
-            y = randint(0, height - 1)
-            salt_or_pepper = randint(0, 1)
-            if salt_or_pepper == 0:
-                salt_and_pepper_img.putpixel((x, y), (0, 0, 0))  # Black pixel (salt)
-            else:
-                salt_and_pepper_img.putpixel((x, y), (255, 255, 255))  # White pixel (pepper)
-
+        for _ in range(int(width * height * 0.01)):
+            x = random.randint(0, width - 1)
+            y = random.randint(0, height - 1)
+            original_img.putpixel((x, y), (255, 255, 255) if random.randint(0, 1) == 0 else (0, 0, 0))
         processed_img_path = f"{img_path.split('.')[0]}_salt_and_pepper.jpg"
-        salt_and_pepper_img.save(processed_img_path)
+        original_img.save(processed_img_path)
         return processed_img_path
+        pass
 
     def apply_concat_filter(self, img_path):
         """
         Apply concatenation filter to the image located at img_path and return the path of the processed image.
         """
+        # Your implementation of concatenation filter
         original_img = Image.open(img_path)
         width, height = original_img.size
-        concat_img = Image.new('RGB', (width * 2, height))
-
-        concat_img.paste(original_img, (0, 0))
-        concat_img.paste(original_img, (width, 0))
-
+        half_width = width // 2
+        processed_img = Image.new('RGB', (width * 2, height))
+        processed_img.paste(original_img, (0, 0))
+        processed_img.paste(original_img.transpose(Image.FLIP_LEFT_RIGHT), (half_width, 0))
         processed_img_path = f"{img_path.split('.')[0]}_concat.jpg"
-        concat_img.save(processed_img_path)
+        processed_img.save(processed_img_path)
         return processed_img_path
+        pass
+
