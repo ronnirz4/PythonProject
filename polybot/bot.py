@@ -68,10 +68,16 @@ class Bot:
         """Bot Main message handler"""
         logger.info(f'Incoming message: {msg}')
         chat_id = msg['chat']['id']
-        user_name = msg['chat'].get('first_name', 'user')
-        greeting = f"Hello, {user_name}! Welcome to our bot."
-        self.send_text(chat_id, greeting)
-        self.send_text(chat_id, f'Your original message: {msg["text"]}')
+        user_name = msg['chat'].get('first_name', '')
+
+        # Check if the user is a new member
+        if 'new_chat_members' in msg:
+            greeting = f"Hello, {user_name}! Welcome to our bot."
+            self.send_text(chat_id, greeting)
+        elif user_name:
+            self.send_text(chat_id, f"Welcome back to our bot, {user_name}!")
+        else:
+            self.send_text(chat_id, f'Your original message: {msg["text"]}')
 
 
 class QuoteBot(Bot):
@@ -89,7 +95,7 @@ class ImageProcessingBot(Bot):
         if self.is_current_msg_photo(msg):
             try:
                 caption = msg.get("caption", "").lower()
-                supported_filters = ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat']  # Add more filters if needed
+                supported_filters = ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat', 'brightness', 'contrast']  # Add more filters if needed
                 if caption not in supported_filters:
                     self.send_text(msg['chat']['id'], f"Unsupported filter. Supported filters are: {', '.join(supported_filters)}")
                     return
@@ -107,6 +113,10 @@ class ImageProcessingBot(Bot):
                     processed_img = self.apply_salt_and_pepper_filter(img_path)
                 elif caption == 'concat':
                     processed_img = self.apply_concat_filter(img_path)
+                elif caption == 'brightness':
+                    processed_img = self.apply_brightness_filter(img_path)
+                elif caption == 'contrast':
+                    processed_img = self.apply_contrast_filter(img_path)
 
                 self.send_photo(msg['chat']['id'], processed_img)
                 os.remove(img_path)  # Remove the downloaded image after processing
@@ -230,4 +240,26 @@ class ImageProcessingBot(Bot):
         processed_img.save(processed_img_path)
         return processed_img_path
         pass
+
+    def apply_brightness_filter(self, img_path):
+        """
+        Apply brightness adjustment to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        enhancer = ImageEnhance.Brightness(original_img)
+        processed_img = enhancer.enhance(1.5)  # Increase brightness by a factor of 1.5
+        processed_img_path = f"{img_path.split('.')[0]}_brightness.jpg"
+        processed_img.save(processed_img_path)
+        return processed_img_path
+
+    def apply_contrast_filter(self, img_path):
+        """
+        Apply contrast adjustment to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        enhancer = ImageEnhance.Contrast(original_img)
+        processed_img = enhancer.enhance(1.5)  # Increase contrast by a factor of 1.5
+        processed_img_path = f"{img_path.split('.')[0]}_contrast.jpg"
+        processed_img.save(processed_img_path)
+        return processed_img_path
 
