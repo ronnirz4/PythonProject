@@ -96,27 +96,44 @@ class ImageProcessingBot(Bot):
             try:
                 caption = msg.get("caption", "").lower()
                 supported_filters = ['blur', 'contour', 'rotate', 'segment', 'salt and pepper', 'concat', 'brightness', 'contrast']  # Add more filters if needed
-                if caption not in supported_filters:
+                filter_name, *parameters = caption.split()
+                if filter_name not in supported_filters:
                     self.send_text(msg['chat']['id'], f"Unsupported filter. Supported filters are: {', '.join(supported_filters)}")
                     return
 
                 img_path = self.download_user_photo(msg)
-                if caption == 'blur':
-                    processed_img = self.apply_blur_filter(img_path)
-                elif caption == 'contour':
+                if filter_name == 'rotate':
+                    rotate_count = 1
+                    if parameters and parameters[0].isdigit():
+                        rotate_count = int(parameters[0])
+
+                    processed_img = self.apply_rotate_filter(img_path, rotate_count)
+                elif filter_name == 'contour':
                     processed_img = self.apply_contour_filter(img_path)
-                elif caption == 'rotate':
-                    processed_img = self.apply_rotate_filter(img_path)
-                elif caption == 'segment':
+                elif filter_name == 'segment':
                     processed_img = self.apply_segment_filter(img_path)
-                elif caption == 'salt and pepper':
+                elif filter_name == 'salt and pepper':
                     processed_img = self.apply_salt_and_pepper_filter(img_path)
-                elif caption == 'concat':
+                elif filter_name == 'concat':
                     processed_img = self.apply_concat_filter(img_path)
-                elif caption == 'brightness':
-                    processed_img = self.apply_brightness_filter(img_path)
-                elif caption == 'contrast':
-                    processed_img = self.apply_contrast_filter(img_path)
+                elif filter_name == 'brightness':
+                    brightness_factor = 1.0
+                    if parameters and parameters[0].replace('.', '').isdigit():
+                        brightness_factor = float(parameters[0])
+
+                    processed_img = self.apply_brightness_filter(img_path, brightness_factor)
+                elif filter_name == 'contrast':
+                    contrast_factor = 1.0
+                    if parameters and parameters[0].replace('.', '').isdigit():
+                        contrast_factor = float(parameters[0])
+
+                    processed_img = self.apply_contrast_filter(img_path, contrast_factor)
+                elif filter_name == 'blur':
+                    blur_radius = 2
+                    if parameters and parameters[0].isdigit():
+                        blur_radius = int(parameters[0])
+
+                    processed_img = self.apply_blur_filter(img_path, blur_radius)
 
                 self.send_photo(msg['chat']['id'], processed_img)
                 os.remove(img_path)  # Remove the downloaded image after processing
@@ -126,12 +143,25 @@ class ImageProcessingBot(Bot):
         else:
             self.send_text(msg['chat']['id'], "Please send a photo with a caption indicating the filter to apply.")
 
-    def apply_blur_filter(self, img_path):
+    def apply_rotate_filter(self, img_path, rotate_count=1):
+        """
+        Apply rotation to the image located at img_path and return the path of the processed image.
+        """
+        original_img = Image.open(img_path)
+        processed_img = original_img
+        for _ in range(rotate_count):
+            processed_img = processed_img.rotate(90)  # Rotate by 90 degrees
+        processed_img_path = f"{img_path.split('.')[0]}_rotate.jpg"
+        processed_img.save(processed_img_path)
+        return processed_img_path
+
+
+    def apply_blur_filter(self, img_path, blur_radius=2):
         """
         Apply blur filter to the image located at img_path and return the path of the processed image.
         """
         original_img = Image.open(img_path)
-        processed_img = original_img.filter(ImageFilter.BLUR)
+        processed_img = original_img.filter(ImageFilter.GaussianBlur(blur_radius))
         processed_img_path = f"{img_path.split('.')[0]}_blur.jpg"
         processed_img.save(processed_img_path)
         return processed_img_path
@@ -175,12 +205,14 @@ class ImageProcessingBot(Bot):
 
         return processed_img_path
 
-    def apply_rotate_filter(self, img_path):
+    def apply_rotate_filter(self, img_path, rotate_count=1):
         """
         Apply rotation to the image located at img_path and return the path of the processed image.
         """
         original_img = Image.open(img_path)
-        processed_img = original_img.rotate(90)  # Rotate by 90 degrees
+        processed_img = original_img
+        for _ in range(rotate_count):
+            processed_img = processed_img.rotate(90)  # Rotate by 90 degrees
         processed_img_path = f"{img_path.split('.')[0]}_rotate.jpg"
         processed_img.save(processed_img_path)
         return processed_img_path
@@ -241,24 +273,24 @@ class ImageProcessingBot(Bot):
         return processed_img_path
         pass
 
-    def apply_brightness_filter(self, img_path):
+    def apply_brightness_filter(self, img_path, brightness_factor=1.0):
         """
         Apply brightness adjustment to the image located at img_path and return the path of the processed image.
         """
         original_img = Image.open(img_path)
         enhancer = ImageEnhance.Brightness(original_img)
-        processed_img = enhancer.enhance(1.5)  # Increase brightness by a factor of 1.5
+        processed_img = enhancer.enhance(brightness_factor)
         processed_img_path = f"{img_path.split('.')[0]}_brightness.jpg"
         processed_img.save(processed_img_path)
         return processed_img_path
 
-    def apply_contrast_filter(self, img_path):
+    def apply_contrast_filter(self, img_path, contrast_factor=1.0):
         """
         Apply contrast adjustment to the image located at img_path and return the path of the processed image.
         """
         original_img = Image.open(img_path)
         enhancer = ImageEnhance.Contrast(original_img)
-        processed_img = enhancer.enhance(1.5)  # Increase contrast by a factor of 1.5
+        processed_img = enhancer.enhance(contrast_factor)
         processed_img_path = f"{img_path.split('.')[0]}_contrast.jpg"
         processed_img.save(processed_img_path)
         return processed_img_path
