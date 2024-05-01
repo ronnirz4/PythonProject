@@ -139,9 +139,12 @@ class ImageProcessingBot(Bot):
                 os.remove(img_path)  # Remove the downloaded image after processing
             except Exception as e:
                 logger.error(f"Error processing image: {e}")
-                self.send_text(msg['chat']['id'], "Error processing image. Please try again later.")
+                self.send_text(msg['chat']['id'], "Error processing image. Must write filter name.")
         else:
-            self.send_text(msg['chat']['id'], "Please send a photo with a caption indicating the filter to apply.")
+            # Extract the user's first name
+            first_name = msg['from'].get('first_name', 'there')
+
+            self.send_text(msg['chat']['id'], f"Hi {first_name} !,Please send a photo with a Caption indicating the filter to apply.")
 
     def apply_rotate_filter(self, img_path, rotate_count=1):
         """
