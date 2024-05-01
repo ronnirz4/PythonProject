@@ -205,18 +205,6 @@ class ImageProcessingBot(Bot):
 
         return processed_img_path
 
-    def apply_rotate_filter(self, img_path, rotate_count=1):
-        """
-        Apply rotation to the image located at img_path and return the path of the processed image.
-        """
-        original_img = Image.open(img_path)
-        processed_img = original_img
-        for _ in range(rotate_count):
-            processed_img = processed_img.rotate(90)  # Rotate by 90 degrees
-        processed_img_path = f"{img_path.split('.')[0]}_rotate.jpg"
-        processed_img.save(processed_img_path)
-        return processed_img_path
-
     def apply_segment_filter(self, img_path):
         """
         Apply segmentation filter to the image located at img_path and return the path of the processed image.
